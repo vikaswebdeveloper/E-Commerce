@@ -12,40 +12,40 @@ export default function Home() {
 
   return (
     <div className="space-y-14">
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-ink-900 via-ink-800 to-indigo-700 px-6 py-12 text-white sm:px-12 sm:py-16">
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-ink-900 via-ink-800 to-indigo-700 px-6 py-6 text-white sm:px-8 sm:py-7">
         {/* soft decorative glows */}
         <div className="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-indigo-400/30 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 right-1/3 h-72 w-72 rounded-full bg-sky-400/20 blur-3xl" />
 
-        <div className="relative grid items-center gap-10 md:grid-cols-2">
+        <div className="relative grid items-center gap-5 md:grid-cols-[1fr_1.15fr]">
         <div className="max-w-xl">
           <span className="badge bg-white/10 text-white">Free delivery over ₹999</span>
-          <h1 className="mt-4 text-3xl font-bold leading-tight text-white sm:text-5xl">Everything you need, delivered with care.</h1>
-          <p className="mt-4 text-ink-300">Discover curated products across electronics, fashion, home and more — at honest prices, with secure checkout.</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/products" className="btn bg-[#ffffff] text-ink-900 hover:bg-[#f1f5f9]">Shop now</Link>
-            <Link to="/products?sort=popular" className="btn border border-white/30 text-white hover:bg-white/10">Best sellers</Link>
+          <h1 className="mt-2 text-2xl font-bold leading-tight text-white sm:text-3xl">Everything you need, delivered with care.</h1>
+          <p className="mt-1.5 text-sm text-ink-300">Discover curated products across electronics, fashion, home and more — at honest prices, with secure checkout.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link to="/products" className="btn btn-sm !py-2 bg-[#ffffff] text-ink-900 hover:bg-[#f1f5f9]">Shop now</Link>
+            <Link to="/products?sort=popular" className="btn btn-sm !py-2 border border-white/30 text-white hover:bg-white/10">Best sellers</Link>
           </div>
         </div>
 
         {/* Product showcase: real products from the catalog, so the banner never looks empty. */}
-        <div className="hidden pb-6 md:block" aria-label="Featured products">
-          <div className="mx-auto grid max-w-md grid-cols-2 gap-4">
-            {(newest.data?.items ?? []).slice(0, 4).map((p: any, i: number) => (
+        <div className="hidden md:block" aria-label="Featured products">
+          <div className="grid grid-cols-4 gap-3">
+            {(newest.data?.items ?? []).slice(0, 4).map((p: any) => (
               <Link
                 key={p.id}
                 to={`/products/${p.slug}`}
-                className={`group rounded-2xl bg-white/10 p-2 ring-1 ring-white/15 backdrop-blur transition hover:-translate-y-1 hover:bg-white/15 ${i % 2 ? 'translate-y-6' : ''}`}
+                className="group rounded-xl bg-white/10 p-1.5 ring-1 ring-white/15 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15"
               >
-                <Img src={p.images?.[0]} alt={p.name} className="aspect-square w-full rounded-xl object-cover" />
-                <div className="px-1 pb-1 pt-2">
-                  <div className="truncate text-sm font-medium text-white">{p.name}</div>
-                  <div className="text-xs text-ink-300">{money(p.price)}</div>
+                <Img src={p.images?.[0]} alt={p.name} className="aspect-square w-full rounded-lg object-cover" />
+                <div className="px-0.5 pb-0.5 pt-1.5">
+                  <div className="truncate text-xs font-medium text-white">{p.name}</div>
+                  <div className="text-[11px] text-ink-300">{money(p.price)}</div>
                 </div>
               </Link>
             ))}
             {newest.loading && Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={`aspect-[4/5] animate-pulse rounded-2xl bg-white/10 ${i % 2 ? 'translate-y-6' : ''}`} />
+              <div key={i} className="aspect-square animate-pulse rounded-xl bg-white/10" />
             ))}
           </div>
         </div>
