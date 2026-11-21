@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# secrets / local config  (never commit these; use server/.env.example as the template)
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+*.tsbuildinfo
+
+# uploads (images live in Backblaze B2; local fallback is dev-only)
+server/uploads/*
+!server/uploads/.gitkeep
+
+# local databases / logs / OS + editor files
+*.db
+*.db-journal
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
