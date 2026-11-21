@@ -10,7 +10,8 @@
     "db:push": "prisma db push",
     "seed": "tsx prisma/seed.ts",
     "setup": "prisma generate && prisma db push && tsx prisma/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:api": "node scripts/build-api.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1175.0",
@@ -36,6 +37,7 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.6",
     "@types/supertest": "^7.2.1",
+    "esbuild": "^0.28.2",
     "prisma": "^6.19.3",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",

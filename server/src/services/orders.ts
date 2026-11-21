@@ -90,6 +90,43 @@ export async function markPaid(razorpayOrderId: string, paymentId: string) {
   return false;
 }
 
+/**
+ * A genuine, signature-verified payment arrived for an order that was already cancelled/expired (the customer paid
+ * after the 30-minute window). The goods can't be shipped, so return the money automatically.
+ * Idempotent: the "claim" is a conditional update, so concurrent verify + webhook calls refund exactly once.
+ * Returns true if this call issued the refund. If the gateway refund fails the order is flagged
+ * (CANCELLED + paymentStatus PAID) so an admin can refund manually.
+ */
+export async function refundLatePayment(order: { id: string; total: number; status: string }, paymentId: string): Promise<boolean> {
+  if (order.status !== 'CANCELLED') return false;
+  const claimed = await prisma.order.updateMany({
+    where: { id: order.id, status: 'CANCELLED', razorpayPaymentId: null, paymentStatus: { not: 'REFUNDED' } },
+    data: { razorpayPaymentId: paymentId, paymentStatus: 'REFUNDED' },
+  });
+  if (claimed.count !== 1) return false;
+  try {
+    await refundPayment(paymentId, order.total);
+    return true;
+  } catch (e) {
+    await prisma.order.update({ where: { id: order.id }, data: { paymentStatus: 'PAID' } });
+    console.error(`[payments] late payment ${paymentId} for order ${order.id} could not be auto-refunded: needs manual refund`, (e as Error).message);
+    return false;
+  }
+}
+
+let lastExpiryRun = 0;
+/** Runs the stale-order cleanup at most once per interval per instance. Used on serverless hosts that have no timers. */
+export async function expireStaleOrdersThrottled(ttlMinutes: number, everyMs = 5 * 60_000) {
+  if (Date.now() - lastExpiryRun < everyMs) return 0;
+  lastExpiryRun = Date.now();
+  try {
+    return await expireStaleOrders(ttlMinutes);
+  } catch (e) {
+    console.error('[orders] stale order cleanup failed', (e as Error).message);
+    return 0;
+  }
+}
+
 /** Cancel unpaid online orders older than TTL and free their stock. */
 export async function expireStaleOrders(ttlMinutes: number) {
   const cutoff = new Date(Date.now() - ttlMinutes * 60_000);

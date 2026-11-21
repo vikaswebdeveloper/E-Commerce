@@ -5,10 +5,10 @@ import { authenticate } from '../middleware/auth.js';
 import { AppError, conflict, forbidden, notFound } from '../lib/errors.js';
 import { id, parse, parseImages } from '../lib/validate.js';
 import { computeDiscount, computeShipping } from '../services/pricing.js';
-import { cancelOrder, serializeOrder } from '../services/orders.js';
+import { cancelOrder, expireStaleOrdersThrottled, serializeOrder } from '../services/orders.js';
 import { createGatewayOrder, publicKeyId } from '../services/razorpay.js';
 import { sendMail } from '../lib/mailer.js';
-import { MAX_ORDER_VALUE, TX_OPTS } from '../config.js';
+import { config, MAX_ORDER_VALUE, TX_OPTS } from '../config.js';
 
 export const ordersRouter = Router();
 ordersRouter.use(authenticate);
@@ -26,6 +26,8 @@ const checkoutSchema = z.object({
 ordersRouter.post('/', async (req, res) => {
   const b = parse(checkoutSchema, req.body);
   const userId = req.user!.id;
+  // Serverless hosts have no timers: free stock held by abandoned unpaid orders here (at most every 5 min).
+  await expireStaleOrdersThrottled(config.pendingOrderTtlMinutes);
 
   const address = await prisma.address.findFirst({ where: { id: b.addressId, userId } });
   if (!address) throw new AppError(400, 'Select a valid delivery address');
@@ -110,7 +112,11 @@ ordersRouter.post('/', async (req, res) => {
       throw new AppError(502, 'Payment gateway unavailable, please try again');
     }
   } else {
-    void sendMail(req.user!.email, `Order ${order.id} confirmed`, `Thanks for your order. Total ₹${order.total / 100}`);
+    await sendMail(
+      req.user!.email,
+      `Order #${order.id.slice(-8).toUpperCase()} confirmed`,
+      `Thanks for your order!\n\nOrder #${order.id.slice(-8).toUpperCase()}\nTotal: ₹${order.total / 100} (Cash on delivery)\n\nWe'll let you know when it ships.\n\n— Shop`,
+    );
   }
   res.status(201).json({ order: serializeOrder(order), payment });
 });

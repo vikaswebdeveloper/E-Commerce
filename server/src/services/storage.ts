@@ -53,7 +53,8 @@ export async function saveImage(buffer: Buffer, ext: keyof typeof CONTENT_TYPE):
     return `${b2.publicBaseUrl}/products/${name}`;
   }
 
-  // Development / test fallback.
+  // Local disk is a development/test fallback only. Production hosts (e.g. Vercel) have no writable, persistent disk.
+  if (config.isProd) throw new AppError(503, 'Image uploads are not configured on this server');
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
   await fs.writeFile(path.join(UPLOAD_DIR, name), buffer);
   return `/uploads/${name}`;

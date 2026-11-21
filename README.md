@@ -108,11 +108,40 @@ Coverage: authentication (hashing, lockout, enumeration, JWT forgery / `alg:none
 
 ## Production checklist
 
-1. `NODE_ENV=production`, random `JWT_SECRET` (≥ 32 chars), real Razorpay keys + webhook secret, B2 configured, `CLIENT_ORIGIN` set to your domain, `TRUST_PROXY=1` behind a proxy, `ALLOW_LAN_ORIGINS` unset.
-2. Serve over HTTPS (cookies become `Secure`).
-3. Plug a real mail provider into `server/src/lib/mailer.ts` (currently logs to console).
-4. Build the client (`npm run build`) and serve `client/dist` from a CDN / reverse proxy, forwarding `/api` to the API.
-5. Run `npm audit` regularly. Known note: the Prisma **CLI** (dev dependency only, not shipped at runtime) reports advisories in its own transitive dependencies.
+1. `NODE_ENV=production` (Vercel sets it), a new random `JWT_SECRET` (≥ 32 chars), live Razorpay keys + webhook secret, `CLIENT_ORIGIN` set to your domain, `TRUST_PROXY=1`, `ALLOW_LAN_ORIGINS` unset.
+2. **Email:** set `RESEND_API_KEY`, `MAIL_FROM` (verified domain) and `SUPPORT_EMAIL`. Without them password-reset emails are never delivered.
+3. **Shared rate limits:** set `UPSTASH_REDIS_REST_URL` / `_TOKEN` (free tier is enough) on serverless hosts.
+4. **Images:** configure Backblaze B2 (uploads return 503 without it) and put a CDN / custom domain in front (`B2_PUBLIC_URL`).
+5. **Database:** a paid Neon plan with backups / point-in-time restore; keep tests on a separate branch.
+6. **Accounts:** a strong `ADMIN_PASSWORD` (the seed refuses weak ones in production) and no demo customer.
+7. **Hosting plan:** Vercel's free Hobby plan is non-commercial only; use Vercel Pro (or another paid host) for a real store.
+8. Replace the placeholder legal pages (Privacy, Terms, Returns, Shipping) with your real policies.
+9. Run `npm audit` regularly (CI also does it). Not built yet: admin two-factor login, courier / shipping-rate integration, GST invoices.
+
+## Deploying to Vercel (free, for demos)
+
+The repo is ready for a single Vercel project with **Root Directory = `server`**. `server/vercel.json` builds the website (`client/`), serves it as static files, and runs the API as one serverless function (`server/api/index.mjs`, a pre-bundled copy of the Express app, rebuilt on every deploy with `npm run build:api`). The site and API share one domain, so the login cookie just works.
+
+1. Load the data once from your PC: put the **direct** Neon string in `server/.env`, a strong `ADMIN_PASSWORD`, then `npm run setup`.
+2. Push to GitHub, then on vercel.com: **Add New → Project →** import the repo → set **Root Directory** to `server` (keep "Include source files outside of the Root Directory" on).
+3. Add environment variables (Settings → Environment Variables):
+
+| Name | Value |
+|---|---|
+| `DATABASE_URL` | Neon **pooled** string, add `&pgbouncer=true` |
+| `JWT_SECRET` | new random 48+ chars |
+| `TRUST_PROXY` | `1` |
+| `CLIENT_ORIGIN` | `https://<your-project>.vercel.app` (set after the first deploy, then redeploy) |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Razorpay **test** keys (production mode refuses mock payments) |
+| `CRON_SECRET` | random string (enables the daily cleanup job) |
+| `RESEND_API_KEY`, `MAIL_FROM`, `SUPPORT_EMAIL` | optional for a demo |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | optional for a demo, recommended for production |
+| `B2_*` | optional for a demo (admin uploads are disabled without them) |
+
+4. Razorpay dashboard → Webhooks: `https://<your-project>.vercel.app/api/payments/webhook`, events `payment.captured` + `order.paid`, secret = `RAZORPAY_WEBHOOK_SECRET`.
+5. Test with Razorpay test card `4111 1111 1111 1111` (any future expiry / CVV) or UPI `success@razorpay`.
+
+Notes: the daily cron (Hobby limit) frees stock from unpaid orders; stale orders are also cleaned during checkout. The website is served with a strict Content-Security-Policy (`server/vercel.json`): if you edit the inline theme script in `client/index.html`, update its hash there (a client test tells you).
 
 ## Project layout
 

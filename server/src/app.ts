@@ -11,6 +11,8 @@ import { accountRouter } from './routes/account.js';
 import { ordersRouter } from './routes/orders.js';
 import { paymentsRouter } from './routes/payments.js';
 import { adminRouter } from './routes/admin.js';
+import { contactRouter } from './routes/contact.js';
+import { cronRouter } from './routes/cron.js';
 import { mockPayments } from './config.js';
 import { isAllowedOrigin } from './lib/origin.js';
 import { UPLOAD_DIR } from './services/storage.js';
@@ -54,6 +56,8 @@ export function createApp() {
   app.use('/api/orders', ordersRouter);
   app.use('/api/payments', paymentsRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/contact', contactRouter);
+  app.use('/api/cron', cronRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

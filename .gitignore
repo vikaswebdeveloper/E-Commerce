@@ -6,8 +6,9 @@ node_modules/
 .env.*
 !.env.example
 
-# build output
+# build output (server/api/index.mjs is the Vercel bundle: it IS committed, see server/scripts/build-api.mjs)
 dist/
+server/public/
 *.tsbuildinfo
 
 # uploads (images live in Backblaze B2; local fallback is dev-only)

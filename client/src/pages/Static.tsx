@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ErrorBox } from '../components/ui';
 import { useApp } from '../context/app';
+import { api } from '../lib/api';
 
 const P = ({ children }: { children: React.ReactNode }) => <p className="leading-relaxed text-slate-600">{children}</p>;
 
@@ -32,13 +34,37 @@ const PAGES: Record<string, { title: string; body: React.ReactNode }> = {
 function ContactForm() {
   const { toast } = useApp();
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [f, setF] = useState({ name: '', email: '', message: '', website: '' });
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr('');
+    try {
+      await api.post('/api/contact', f);
+      setSent(true);
+      toast('Message sent');
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return sent ? <P>Thanks! We'll get back to you within one business day.</P> : (
-    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setSent(true); toast('Message sent'); }}>
+    <form className="space-y-4" onSubmit={submit}>
       <P>Questions about an order or product? Send us a note.</P>
-      <div><label className="label" htmlFor="cn">Name</label><input id="cn" className="input" required maxLength={80} /></div>
-      <div><label className="label" htmlFor="ce">Email</label><input id="ce" type="email" className="input" required /></div>
-      <div><label className="label" htmlFor="cm">Message</label><textarea id="cm" className="input" rows={4} required maxLength={1000} /></div>
-      <button className="btn-primary">Send message</button>
+      <div><label className="label" htmlFor="cn">Name</label><input id="cn" className="input" required minLength={2} maxLength={80} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
+      <div><label className="label" htmlFor="ce">Email</label><input id="ce" type="email" className="input" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
+      <div><label className="label" htmlFor="cm">Message</label><textarea id="cm" className="input" rows={4} required minLength={10} maxLength={2000} value={f.message} onChange={(e) => setF({ ...f, message: e.target.value })} /></div>
+      {/* Honeypot: invisible to people, filled by bots. */}
+      <div className="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
+        <label>Website<input tabIndex={-1} autoComplete="off" value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} /></label>
+      </div>
+      <ErrorBox msg={err} />
+      <button className="btn-primary" disabled={busy}>{busy ? 'Sending…' : 'Send message'}</button>
     </form>
   );
 }

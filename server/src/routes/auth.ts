@@ -36,7 +36,8 @@ authRouter.post('/signup', credentialLimiter, async (req, res) => {
     data: { name: body.name, email: body.email, passwordHash: await bcrypt.hash(body.password, config.bcryptRounds), role: 'CUSTOMER' },
   });
   setAuthCookie(res, signToken(user.id, user.tokenVersion));
-  void sendMail(user.email, 'Welcome to Shop', `Hi ${user.name}, your account is ready.`);
+  // Awaited: serverless hosts may freeze the function right after the response is sent.
+  await sendMail(user.email, 'Welcome to Shop', `Hi ${user.name},\n\nYour account is ready. Happy shopping!\n\n— Shop`);
   res.status(201).json({ user: publicUser(user) });
 });
 
@@ -104,6 +105,7 @@ const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('h
 
 authRouter.post('/forgot-password', credentialLimiter, async (req, res) => {
   const body = parse(z.object({ email }), req.body);
+  const started = Date.now();
   const user = await prisma.user.findUnique({ where: { email: body.email } });
   if (user && !user.isBlocked) {
     const token = crypto.randomBytes(32).toString('hex');
@@ -111,9 +113,17 @@ authRouter.post('/forgot-password', credentialLimiter, async (req, res) => {
       where: { id: user.id },
       data: { resetTokenHash: hashToken(token), resetExpires: new Date(Date.now() + 60 * 60_000) },
     });
-    void sendMail(user.email, 'Reset your password', `${config.clientOrigins[0]}/reset-password?token=${token}`);
+    await sendMail(
+      user.email,
+      'Reset your Shop password',
+      `Hi ${user.name},\n\nUse this link to choose a new password (valid for 1 hour):\n${config.clientOrigins[0]}/reset-password?token=${token}\n\nIf you did not ask for this, you can ignore this email; your password stays the same.\n\n— Shop`,
+    );
   }
-  // Same response whether or not the account exists (no user enumeration).
+  // Same response AND similar timing whether or not the account exists (no user enumeration):
+  // sending mail takes noticeable time, so pad every response to a fixed minimum.
+  const MIN_MS = config.isTest ? 0 : 800;
+  const wait = MIN_MS - (Date.now() - started);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   res.json({ ok: true, message: 'If that email exists, a reset link has been sent.' });
 });
 

@@ -84,10 +84,15 @@ describe('Backblaze B2 image storage', () => {
     fs.rmSync(`${UPLOAD_DIR}/${url.split('/').pop()}`, { force: true });
   });
 
-  it('refuses to boot in production without B2 (local disk is ephemeral)', async () => {
+  it('in production without B2, uploads are refused (503) instead of writing to an ephemeral disk', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('JWT_SECRET', 'x'.repeat(40));
-    await expect(import('../src/config.js')).rejects.toThrow(/Backblaze B2 is required/);
+    vi.stubEnv('RAZORPAY_KEY_ID', 'rzp_test_x');
+    vi.stubEnv('RAZORPAY_KEY_SECRET', 'secret');
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { saveImage } = await import('../src/services/storage.js');
+    await expect(saveImage(png, 'png')).rejects.toMatchObject({ status: 503 });
+    expect(send).not.toHaveBeenCalled();
   });
 });
 

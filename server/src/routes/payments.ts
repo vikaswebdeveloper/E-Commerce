@@ -6,7 +6,7 @@ import { mockPayments } from '../config.js';
 import { authenticate } from '../middleware/auth.js';
 import { AppError, notFound } from '../lib/errors.js';
 import { parse } from '../lib/validate.js';
-import { markPaid, serializeOrder } from '../services/orders.js';
+import { markPaid, refundLatePayment, serializeOrder } from '../services/orders.js';
 import { mockSign, verifyPaymentSignature, verifyWebhookSignature } from '../services/razorpay.js';
 import { sendMail } from '../lib/mailer.js';
 
@@ -33,7 +33,12 @@ paymentsRouter.post('/webhook', async (req, res) => {
     if (p?.order_id && p?.id) {
       const order = await prisma.order.findUnique({ where: { razorpayOrderId: String(p.order_id) } });
       // Never trust amounts blindly: the captured amount must match what we charged.
-      if (order && Number(p.amount) === order.total) await markPaid(order.razorpayOrderId!, String(p.id));
+      if (order && Number(p.amount) === order.total) {
+        await markPaid(order.razorpayOrderId!, String(p.id));
+        // Paid after the order expired/was cancelled -> give the money back automatically.
+        const now = await prisma.order.findUnique({ where: { id: order.id } });
+        if (now?.status === 'CANCELLED') await refundLatePayment(now, String(p.id)).catch((e) => console.error('[payments] late refund failed', e));
+      }
     }
   }
   res.json({ ok: true });
@@ -51,9 +56,20 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     throw new AppError(400, 'Payment verification failed');
   }
   const changed = await markPaid(b.razorpay_order_id, b.razorpay_payment_id);
-  if (changed) void sendMail(req.user!.email, `Payment received for order ${order.id}`, `We received ₹${order.total / 100}.`);
+  if (changed) {
+    await sendMail(
+      req.user!.email,
+      `Payment received for order #${order.id.slice(-8).toUpperCase()}`,
+      `Thanks! We received your payment of ₹${order.total / 100} for order #${order.id.slice(-8).toUpperCase()}.\n\nWe'll let you know when it ships.\n\n— Shop`,
+    );
+  }
   const fresh = await prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true } });
-  if (fresh.status === 'CANCELLED' || fresh.status === 'REFUNDED') throw new AppError(409, 'Order was cancelled');
+  if (fresh.status === 'CANCELLED') {
+    // The customer paid after the order expired: refund automatically so they are never charged for nothing.
+    await refundLatePayment(fresh, b.razorpay_payment_id).catch((e) => console.error('[payments] late refund failed', e));
+    throw new AppError(409, 'This order had expired or was cancelled, so your payment is being refunded automatically.');
+  }
+  if (fresh.status === 'REFUNDED') throw new AppError(409, 'Order was cancelled');
   res.json({ order: serializeOrder(fresh) });
 });
 

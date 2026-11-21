@@ -50,12 +50,26 @@ export const config = {
     auth: num('AUTH_RATE_LIMIT', isTest ? 100000 : 30),
     // Stops guessing of coupon codes (the validate endpoint reveals whether a code exists).
     coupon: num('COUPON_RATE_LIMIT', isTest ? 100000 : 60),
+    contact: num('CONTACT_RATE_LIMIT', isTest ? 100000 : 5),
   },
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID ?? '',
     keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
   },
+  // Transactional email through Resend's HTTP API (no SDK needed). Without a key, mail is only logged.
+  mail: {
+    resendKey: process.env.RESEND_API_KEY ?? '',
+    from: process.env.MAIL_FROM ?? '', // e.g. "Shop <orders@yourdomain.com>"
+    supportEmail: process.env.SUPPORT_EMAIL ?? '', // where the contact form delivers messages
+  },
+  // Shared rate-limit counters. Needed on serverless (Vercel), where each instance has its own memory.
+  upstash: {
+    url: (process.env.UPSTASH_REDIS_REST_URL ?? '').replace(/\/+$/, ''),
+    token: process.env.UPSTASH_REDIS_REST_TOKEN ?? '',
+  },
+  // Protects /api/cron/*. Vercel Cron sends it automatically as "Authorization: Bearer <CRON_SECRET>".
+  cronSecret: process.env.CRON_SECRET ?? '',
   freeShippingThreshold: 99900, // paise
   shippingFee: 4900, // paise
   pendingOrderTtlMinutes: 30,
@@ -74,8 +88,10 @@ export const b2 = {
 };
 /** When false, uploads fall back to local disk (development/tests only). */
 export const b2Enabled = !!(b2.keyId && b2.appKey && b2.bucket && b2.endpoint && b2.publicBaseUrl);
-if (isProd && !b2Enabled) {
-  throw new Error('Backblaze B2 is required in production (set B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET, B2_REGION)');
+if (isProd && !b2Enabled && !isTest) {
+  // Not fatal (the storefront works with externally hosted images), but admin image uploads are disabled:
+  // production servers have no persistent disk, so the local fallback is never used there.
+  console.warn('[config] Backblaze B2 is not configured: admin image uploads are disabled (set B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET, B2_REGION).');
 }
 
 // Mock payments are allowed only outside production and only when no keys are set.
