@@ -20,6 +20,15 @@ const server = app.listen(config.port, config.host, () => {
     for (const ip of lanAddresses()) console.log(`  network: http://${ip}:${config.port}`);
   }
   console.log(`  payments: ${mockPayments ? 'MOCK' : 'Razorpay'}   images: ${b2Enabled ? 'Backblaze B2' : 'local disk (dev only)'}`);
+
+  const exposed = config.host === '0.0.0.0' || config.host === '::';
+  if (mockPayments && exposed) {
+    console.warn(
+      '\n  ⚠  SECURITY: mock payments are ON and the API is reachable from your network.\n' +
+        '     Anyone with an account can place orders that count as PAID without paying.\n' +
+        '     Set the Razorpay keys, or set HOST=127.0.0.1, before sharing this on a network you do not fully trust.\n',
+    );
+  }
 });
 
 // Free reserved stock from abandoned, unpaid online orders.

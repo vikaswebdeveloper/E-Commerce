@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
+import { couponLimiter } from '../middleware/security.js';
 import { conflict, notFound } from '../lib/errors.js';
 import { id, parse, parseImages, text } from '../lib/validate.js';
 import { computeDiscount, computeShipping } from '../services/pricing.js';
@@ -214,7 +215,7 @@ reviewRouter.delete('/product/:productId', authenticate, async (req, res) => {
 accountRouter.use('/reviews', reviewRouter);
 
 /* ------------------------------ Coupons ----------------------------- */
-accountRouter.post('/coupons/validate', authenticate, async (req, res) => {
+accountRouter.post('/coupons/validate', authenticate, couponLimiter(), async (req, res) => {
   const b = parse(z.object({ code: z.string().trim().toUpperCase().min(1).max(30) }), req.body);
   const cart = await loadCart(req.user!.id);
   const coupon = await prisma.coupon.findUnique({ where: { code: b.code } });

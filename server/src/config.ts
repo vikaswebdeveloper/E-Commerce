@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import crypto from 'node:crypto';
 import path from 'node:path';
 
 const env = process.env.NODE_ENV ?? 'development';
@@ -37,7 +38,9 @@ export const config = {
   host: process.env.HOST ?? '0.0.0.0',
   // Accept browser origins from private LAN addresses (e.g. http://192.168.1.20:5173). Never enabled by default in production.
   allowLanOrigins: process.env.ALLOW_LAN_ORIGINS ? process.env.ALLOW_LAN_ORIGINS === '1' : env === 'development',
-  jwtSecret: required('JWT_SECRET', 'dev-only-insecure-secret-do-not-use-in-prod-0000', 32),
+  // Never fall back to a constant: a known secret would let anyone forge an admin session.
+  // Without JWT_SECRET in development a random per-process secret is used (sessions reset on restart).
+  jwtSecret: required('JWT_SECRET', crypto.randomBytes(48).toString('hex'), 32),
   clientOrigins: (process.env.CLIENT_ORIGIN ?? 'http://localhost:5173').split(',').map((s) => s.trim()),
   bcryptRounds: num('BCRYPT_ROUNDS', isTest ? 4 : 12),
   trustProxy: process.env.TRUST_PROXY === '1',
@@ -45,6 +48,8 @@ export const config = {
     // ~100 requests/minute per IP. A single page view makes ~10 API calls, and a home/office network shares one IP.
     global: num('GLOBAL_RATE_LIMIT', isTest ? 100000 : 1500),
     auth: num('AUTH_RATE_LIMIT', isTest ? 100000 : 30),
+    // Stops guessing of coupon codes (the validate endpoint reveals whether a code exists).
+    coupon: num('COUPON_RATE_LIMIT', isTest ? 100000 : 60),
   },
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID ?? '',

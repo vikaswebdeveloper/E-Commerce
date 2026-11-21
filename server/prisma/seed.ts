@@ -54,17 +54,30 @@ async function main() {
   const adminEmail = (process.env.ADMIN_EMAIL ?? 'admin@shop.test').toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD ?? 'Admin@12345';
   const hash = (p: string) => bcrypt.hash(p, 12);
+  const isProd = process.env.NODE_ENV === 'production';
+  const isDefaultPw = adminPassword === 'Admin@12345';
+
+  // A publicly known password on an internet-facing admin account is an instant takeover.
+  if (isProd && (isDefaultPw || adminPassword.length < 12)) {
+    throw new Error('Refusing to seed in production: set a strong ADMIN_PASSWORD (12+ characters, not the default).');
+  }
+  if (isDefaultPw) {
+    console.warn('⚠  ADMIN_PASSWORD is the well-known default. Anyone who can reach this site can log in as admin. Set your own in server/.env.');
+  }
 
   await prisma.user.upsert({
     where: { email: adminEmail },
     update: {},
     create: { name: 'Store Admin', email: adminEmail, passwordHash: await hash(adminPassword), role: 'ADMIN' },
   });
-  await prisma.user.upsert({
-    where: { email: 'customer@shop.test' },
-    update: {},
-    create: { name: 'Demo Customer', email: 'customer@shop.test', passwordHash: await hash('Customer@12345'), role: 'CUSTOMER' },
-  });
+  // The demo customer has a public password, so it is only created outside production.
+  if (!isProd) {
+    await prisma.user.upsert({
+      where: { email: 'customer@shop.test' },
+      update: {},
+      create: { name: 'Demo Customer', email: 'customer@shop.test', passwordHash: await hash('Customer@12345'), role: 'CUSTOMER' },
+    });
+  }
 
   let n = 0;
   for (const [catName, products] of Object.entries(catalog)) {
@@ -99,7 +112,7 @@ async function main() {
   await prisma.coupon.upsert({ where: { code: 'WELCOME10' }, update: {}, create: { code: 'WELCOME10', type: 'PERCENT', value: 10, minOrder: 50000, maxDiscount: 50000 } });
   await prisma.coupon.upsert({ where: { code: 'FLAT200' }, update: {}, create: { code: 'FLAT200', type: 'FLAT', value: 20000, minOrder: 200000 } });
 
-  console.log(`Seeded. Admin: ${adminEmail} / ${adminPassword}   Customer: customer@shop.test / Customer@12345`);
+  console.log(`Seeded. Admin: ${adminEmail} (password from ADMIN_PASSWORD)${isProd ? '' : '   Demo customer: customer@shop.test / Customer@12345'}`);
 }
 
 main().finally(() => prisma.$disconnect());

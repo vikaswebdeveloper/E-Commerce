@@ -19,4 +19,5 @@ const opts = {
   message: { error: 'Too many requests, please try again later' },
 };
 export const globalLimiter = () => rateLimit({ ...opts, windowMs: 15 * 60 * 1000, limit: config.rateLimit.global });
+export const couponLimiter = () => rateLimit({ ...opts, windowMs: 15 * 60 * 1000, limit: config.rateLimit.coupon });
 export const authLimiter = () => rateLimit({ ...opts, windowMs: 15 * 60 * 1000, limit: config.rateLimit.auth });
